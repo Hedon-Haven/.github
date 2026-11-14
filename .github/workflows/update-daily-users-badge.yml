@@ -2,7 +2,7 @@ name: Update daily users svg badge
 
 on:
   schedule:
-    - cron: "0 23 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -14,13 +14,12 @@ jobs:
       - name: Query PostHog and render SVG
         env:
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
         run: |
-          # Distinct users of the current UTC day so far; jq -e fails the job if the result is missing
-          n=$(curl -sf -X POST "https://eu.posthog.com/api/projects/$POSTHOG_PROJECT_ID/query/" \
+          # Unique users sending usage_ping for the viewer app in the last 24 h; jq -e fails the job if the result is missing
+          n=$(curl -sf -X POST "https://eu.posthog.com/api/projects/218565/query/" \
             -H "Authorization: Bearer $POSTHOG_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"query":{"kind":"HogQLQuery","query":"SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= toStartOfDay(now(), \u0027UTC\u0027)"}}' \
+            -d '{"query":{"kind":"HogQLQuery","query":"SELECT count(DISTINCT person_id) FROM events WHERE event = \u0027usage_ping\u0027 AND properties.appInfo.packageName = \u0027com.hedon_haven.viewer\u0027 AND timestamp > now() - INTERVAL 24 HOUR"}}' \
             | jq -er ".results[0][0]")
 
           # Badge geometry: fixed 74 px label, value width grows with digit count (~7 px per digit at 11 px Verdana)
