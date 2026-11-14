@@ -1,0 +1,53 @@
+name: Update daily users svg badge
+
+on:
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Query PostHog and render SVG
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: |
+          # Distinct users of the current UTC day so far; jq -e fails the job if the result is missing
+          n=$(curl -sf -X POST "https://eu.posthog.com/api/projects/$POSTHOG_PROJECT_ID/query/" \
+            -H "Authorization: Bearer $POSTHOG_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"query":{"kind":"HogQLQuery","query":"SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= toStartOfDay(now(), \u0027UTC\u0027)"}}' \
+            | jq -er ".results[0][0]")
+
+          # Badge geometry: fixed 74 px label, value width grows with digit count (~7 px per digit at 11 px Verdana)
+          vw=$(( ${#n} * 7 + 14 ))
+          w=$(( 74 + vw ))
+
+          mkdir -p badges
+          cat > badges/daily-users.svg <<EOF
+          <svg xmlns="http://www.w3.org/2000/svg" width="$w" height="20" role="img" aria-label="daily users: $n">
+            <title>daily users: $n</title>
+            <clipPath id="r"><rect width="$w" height="20" rx="3"/></clipPath>
+            <g clip-path="url(#r)">
+              <rect width="74" height="20" fill="#555"/>
+              <rect x="74" width="$vw" height="20" fill="#007ec6"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+              <text x="37" y="14" textLength="60" lengthAdjust="spacingAndGlyphs">daily users</text>
+              <text x="$(( 74 + vw / 2 ))" y="14" textLength="$(( ${#n} * 7 ))" lengthAdjust="spacingAndGlyphs">$n</text>
+            </g>
+          </svg>
+          EOF
+
+      # Commit and push changes
+      - name: Committing changes to repo
+        uses: EndBug/add-and-commit@v11
+        with:
+          add: badges/daily-users.svg
+          message: "Update daily users badge"
+          default_author: github_actions
+          push: origin HEAD:main
