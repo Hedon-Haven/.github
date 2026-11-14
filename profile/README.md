@@ -2,6 +2,8 @@
 
 An adult content aggregator app.
 
+![Daily users](https://raw.githubusercontent.com/Hedon-Haven/.github/main/badges/daily-users.svg)
+
 ## Features:
 
 * **Supports many providers:** Pornhub, xHamster and more (coming soon).
